@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI宏观市场沙盘 - Gemini实时版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Microsoft JhengHei', sans-serif; background-color: #0f172a; color: white; overflow: hidden; }
+        .glass-panel { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .neon-text-red { text-shadow: 0 0 10px rgba(239, 68, 68, 0.8); }
+        .neon-text-green { text-shadow: 0 0 10px rgba(34, 197, 94, 0.8); }
+        .pulse-warning { animation: pulse-red 1s infinite; }
+        @keyframes pulse-red { 0% { background-color: rgba(239, 68, 68, 0.2); } 50% { background-color: rgba(239, 68, 68, 0.6); } 100% { background-color: rgba(239, 68, 68, 0.2); } }
+        .loading-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
+        @keyframes dots { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col p-4">
+
+    <div class="flex justify-between items-center mb-4 glass-panel p-4 rounded-xl">
+        <h1 class="text-2xl font-bold text-cyan-400">📈 AI宏观经济沙盘：Gemini实时问答版</h1>
+        <div class="flex items-center gap-4">
+            <div class="text-yellow-400 font-bold">倒计时: <span id="timer">180</span>s</div>
+            <div id="status" class="px-4 py-1 rounded-full font-bold bg-red-500 pulse-warning">危机：经济过热，通胀高企！</div>
+        </div>
+    </div>
+
+    <div class="flex flex-1 gap-4 overflow-hidden">
+        <!-- 左侧：走势图 -->
+        <div class="flex-1 glass-panel rounded-xl p-4 flex flex-col relative">
+            <div class="absolute top-4 left-4 text-sm text-slate-400 z-10">市场走势图（经济热度指数）</div>
+            <div class="flex-1 w-full relative">
+                <canvas id="marketChart"></canvas>
+            </div>
+            <div class="absolute bottom-4 left-4 text-red-400 text-sm font-bold" id="chart-label">🔴 红线飙升：经济过热</div>
+        </div>
+
+        <!-- 右侧：AI面板 -->
+        <div class="w-[480px] glass-panel rounded-xl p-4 flex flex-col">
+            <div class="flex items-center gap-3 mb-3 border-b border-slate-600 pb-3">
+                <div class="w-12 h-12 rounded-full bg-cyan-600 flex items-center justify-center text-2xl">🤖</div>
+                <div>
+                    <h2 class="font-bold text-lg text-cyan-400">AI 发改委主任</h2>
+                    <p class="text-xs text-slate-400">由 Gemini Flash 实时驱动</p>
+                </div>
+            </div>
+
+            <!-- 对话展示区 -->
+            <div id="chat-box" class="flex-1 bg-slate-800 p-4 rounded-lg mb-3 text-sm leading-relaxed border border-slate-600 overflow-y-auto space-y-3 min-h-[150px]">
+                <div class="text-green-300">
+                    报告！当前市场「经济过热、通胀高企」。<br>
+                    根据课本内容，请运用「财政政策」和「货币政策」来降温。<br><br>
+                    👉 点击下方按钮，让我为您实时推演操作建议！
+                </div>
+            </div>
+
+            <!-- 询问AI按钮 -->
+            <button id="ask-ai-btn" onclick="askGemini()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg mb-3 transition flex items-center justify-center gap-2">
+                <span>🧠 询问AI发改委主任</span>
+            </button>
+
+            <!-- 操作按钮区 -->
+            <div class="grid grid-cols-2 gap-2 mb-3">
+                <button onclick="makeMove('raise_tax')" class="btn-action bg-slate-700 hover:bg-slate-600 p-2 rounded text-xs transition border border-slate-500">提高税率</button>
+                <button onclick="makeMove('cut_spending')" class="btn-action bg-slate-700 hover:bg-slate-600 p-2 rounded text-xs transition border border-slate-500">减少公共开支</button>
+                <button onclick="makeMove('raise_rate')" class="btn-action bg-slate-700 hover:bg-slate-600 p-2 rounded text-xs transition border border-slate-500">提高利率</button>
+                <button onclick="makeMove('cut_money')" class="btn-action bg-slate-700 hover:bg-slate-600 p-2 rounded text-xs transition border border-slate-500">减少货币供应</button>
+                <button onclick="makeMove('wrong')" class="btn-action bg-slate-800 hover:bg-red-900 p-2 rounded text-xs transition border border-slate-700 text-slate-500">减免税项</button>
+                <button onclick="makeMove('wrong')" class="btn-action bg-slate-800 hover:bg-red-900 p-2 rounded text-xs transition border border-slate-700 text-slate-500">增加公共开支</button>
+                <button onclick="makeMove('wrong')" class="btn-action bg-slate-800 hover:bg-red-900 p-2 rounded text-xs transition border border-slate-700 text-slate-500">降低利率</button>
+                <button onclick="makeMove('wrong')" class="btn-action bg-slate-800 hover:bg-red-900 p-2 rounded text-xs transition border border-slate-700 text-slate-500">增加货币供应</button>
+            </div>
+
+            <!-- 进度条 -->
+            <div>
+                <div class="flex justify-between text-xs mb-1"><span>调控进度</span><span id="progress-text">0 / 4</span></div>
+                <div class="w-full bg-slate-700 rounded-full h-2.5">
+                    <div id="progress-bar" class="bg-cyan-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 结束弹窗 -->
+    <div id="overlay" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+        <div class="glass-panel p-8 rounded-2xl max-w-3xl text-center border-2 border-cyan-500">
+            <h2 class="text-3xl font-bold text-green-400 mb-4">✅ 成功！经济已软着陆</h2>
+            <div class="bg-slate-800 p-6 rounded-xl text-left border border-slate-600 mb-6 text-sm">
+                <h3 class="font-bold text-cyan-400 text-lg mb-3">📚 课本核心逻辑总结</h3>
+                <p class="mb-2"><b>1. 宏观調控：</b>是指國家對國民經濟進行調節和控制，以促進市場供應和需求取得平衡，令經濟能持續、穩定地發展。</p>
+                <p class="mb-2"><b>2. 财政政策：</b>提高稅率會削弱企業的投資意欲。减少公共開支可能抑制經濟增長。（反之：減免稅項、增加公共開支可刺激經濟）</p>
+                <p><b>3. 货币政策：</b>利率上升會增加借貸成本，令企業減少投資；貨幣供應減少會抑制經濟增長。（反之：利率下降、貨幣供應增加可刺激經濟）</p>
+                <div class="mt-4 p-3 bg-red-900 bg-opacity-30 border border-red-500 rounded text-red-200">
+                    💡 <b>操作逻辑：</b>经济过热时，政府“抽水”（加税、少花钱、加息、少印钱）；经济低迷时，政府“放水”（减税、多花钱、降息、多印钱）。
+                </div>
+            </div>
+            <button onclick="location.reload()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-full transition text-lg">再玩一次</button>
+        </div>
+    </div>
+
+    <script>
+        // ====== 请替换为您自己的 API Key ======
+        const API_KEY = 'AQ.Ab8RN6IUsCaO6Rv8PKDVa54Dn2qdAmmPLfjdHiF8wFsoIwE28w';
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent`;
+
+        // 初始化图表
+        const ctx = document.getElementById('marketChart').getContext('2d');
+        const myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                datasets: [{
+                    label: '经济热度指数',
+                    data: [30, 45, 60, 75, 90, 100],
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderWidth: 4,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#ef4444',
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, max: 110, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+
+        let correctMoves = 0;
+        const requiredMoves = 4;
+        let timeLeft = 180;
+        let gameActive = true;
+        let timerInterval;
+        let aiAsked = false;
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                if (timeLeft <= 0) { clearInterval(timerInterval); if(gameActive) endGame(false); }
+                else { timeLeft--; document.getElementById('timer').innerText = timeLeft; }
+            }, 1000);
+        }
+
+        // ====== 核心：实时调用 Gemini API ======
+        async function askGemini() {
+            if (!gameActive) return;
+            const btn = document.getElementById('ask-ai-btn');
+            const chatBox = document.getElementById('chat-box');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-dots">AI 正在推演</span>';
+
+            // 添加用户提问气泡
+            const userMsg = document.createElement('div');
+            userMsg.className = 'text-right text-yellow-300';
+            userMsg.innerHTML = '🧑‍🎓 学生提问：当前经济过热，我们应该怎么操作？';
+            chatBox.appendChild(userMsg);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-goog-api-key': API_KEY
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: `你是一位国家发改委主任，正在向中学生讲解宏观调控。
+当前经济形势：经济过热、通胀高企。
+请根据以下课本内容，用不超过80字的极简语言，给出4步操作建议（必须包含：提高税率、减少公共开支、提高利率、减少货币供应这4项）。
+课本原文：
+- 财政政策：提高税率会削弱企业投资意欲；减少公共开支可能抑制经济增长。
+- 货币政策：利率上升会增加借贷成本，令企业减少投资；货币供应减少会抑制经济增长。
+请用口语化的汇报语气回答，直接给出操作建议，不要解释原理。`
+                            }]
+                        }]
+                    })
+                });
+
+                if (!response.ok) throw new Error(`API错误: ${response.status}`);
+
+                const data = await response.json();
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'AI暂时无法回答，请重试。';
+
+                const aiMsg = document.createElement('div');
+                aiMsg.className = 'text-green-300 border-l-2 border-cyan-500 pl-3';
+                aiMsg.innerHTML = `🤖 <b>AI发改委主任：</b><br>${aiText}`;
+                chatBox.appendChild(aiMsg);
+                aiAsked = true;
+
+            } catch (err) {
+                const errMsg = document.createElement('div');
+                errMsg.className = 'text-red-400';
+                errMsg.innerHTML = `⚠️ AI调用失败：${err.message}<br>请检查网络或API Key是否正确。`;
+                chatBox.appendChild(errMsg);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<span>🧠 再次询问AI</span>';
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+
+        // ====== 学生操作逻辑 ======
+        function makeMove(action) {
+            if (!gameActive) return;
+
+            if (!aiAsked) {
+                const msg = document.getElementById('chat-box');
+                const warn = document.createElement('div');
+                warn.className = 'text-yellow-400 text-xs';
+                warn.innerHTML = '💡 提示：先点击上方按钮询问AI，让它用课本知识告诉我们该怎么做！';
+                msg.appendChild(warn);
+                msg.scrollTop = msg.scrollHeight;
+                return;
+            }
+
+            const correctActions = ['raise_tax', 'cut_spending', 'raise_rate', 'cut_money'];
+
+            if (correctActions.includes(action)) {
+                const btn = event.target;
+                if (btn.disabled) return;
+                btn.disabled = true;
+                btn.classList.remove('bg-slate-700', 'hover:bg-slate-600');
+                btn.classList.add('bg-green-800', 'border-green-500', 'opacity-50');
+
+                correctMoves++;
+                updateProgress();
+
+                const newData = myChart.data.datasets[0].data.map(v => Math.max(20, v - 20));
+                myChart.data.datasets[0].data = newData;
+
+                if (correctMoves === requiredMoves) {
+                    myChart.data.datasets[0].borderColor = '#22c55e';
+                    myChart.data.datasets[0].backgroundColor = 'rgba(34, 197, 94, 0.1)';
+                    myChart.data.datasets[0].pointBackgroundColor = '#22c55e';
+                    document.getElementById('chart-label').innerHTML = "🟢 绿线平稳：经济成功软着陆";
+                    document.getElementById('chart-label').className = "absolute bottom-4 left-4 text-green-400 text-sm font-bold";
+                    document.getElementById('status').innerHTML = "恢复正常";
+                    document.getElementById('status').className = "px-4 py-1 rounded-full font-bold bg-green-500 neon-text-green";
+                    endGame(true);
+                }
+                myChart.update();
+            } else {
+                const msg = document.getElementById('chat-box');
+                const warn = document.createElement('div');
+                warn.className = 'text-red-400 animate-pulse text-xs';
+                warn.innerHTML = '❌ 操作错误！当前经济过热，这样做会火上浇油！';
+                msg.appendChild(warn);
+                msg.scrollTop = msg.scrollHeight;
+
+                timeLeft = Math.max(0, timeLeft - 10);
+                document.getElementById('timer').innerText = timeLeft;
+            }
+        }
+
+        function updateProgress() {
+            document.getElementById('progress-bar').style.width = (correctMoves / requiredMoves * 100) + '%';
+            document.getElementById('progress-text').innerText = correctMoves + " / " + requiredMoves;
+        }
+
+        function endGame(isSuccess) {
+            gameActive = false;
+            clearInterval(timerInterval);
+            if (isSuccess) document.getElementById('overlay').classList.remove('hidden');
+            else { alert("时间到！市场彻底失控了。请重新开始。"); location.reload(); }
+        }
+
+        startTimer();
+    </script>
+</body>
+</html>
