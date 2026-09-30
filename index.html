@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI宏观沙盘 - 离线防翻车完全版</title>
+    <title>AI宏观沙盘 - 48条预设防翻车终极版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -23,7 +23,7 @@
 <body class="h-screen w-screen flex flex-col p-4">
 
     <div class="flex justify-between items-center mb-4 glass-panel p-4 rounded-xl">
-        <h1 class="text-2xl font-bold text-cyan-400">📈 AI宏观经济沙盘：防翻车完全版</h1>
+        <h1 class="text-2xl font-bold text-cyan-400">📈 AI宏观经济沙盘：防翻车终极版</h1>
         <div class="flex items-center gap-4">
             <div class="text-yellow-400 font-bold text-xl">倒计时: <span id="timer">180</span>s</div>
             <div id="status" class="px-4 py-1 rounded-full font-bold bg-red-500 pulse-warning">危机：经济过热，通胀高企！</div>
@@ -129,8 +129,8 @@
         const MODEL_NAME = 'qwen3.8-27b:free';
 
         // ==========================================
-        // 📚 16种组合的本地预设库（每种至少3条回复）
-        // Key格式: 税收_开支_利率_货币 (raise/cut, increase/cut)
+        // 📚 16种组合的本地预设库（每种严格3条回复，绝无遗漏）
+        // Key格式: 税收_开支_利率_货币
         // ==========================================
         const PRESET_RESPONSES = {
             // 1. 全对：加税、减支、加息、减币
@@ -139,37 +139,37 @@
                 "🎉 绝佳的策略！这套政策组合拳直接掐断了过热苗头，市场资金流动性收紧，物价迅速稳定。",
                 "👍 满分的宏观調控。央行和财政部配合默契，市场供需迅速重归平衡。"
             ],
-            // 2. 财政对，货币错（利率错，货币对）
+            // 2. 财政对，货币错（降息、减币）
             "raise_cut_cut_cut": [
                 "⚠️ 推演失败！虽然你加税减支，但下调利率会刺激企业借贷，抵消了财政紧缩的效果。通胀继续高企！",
                 "📉 效果打折。政策方向自相矛盾：一边收紧财政，一边放松货币。市场搞不清方向，物价依然飞涨。",
                 "❌ 局部失误。你忽略了利率对投资的刺激作用，单靠加税减支无法抑制过热的经济。"
             ],
-            // 3. 财政对，货币错（利率对，货币错）
+            // 3. 财政对，货币错（加息、增币）
             "raise_cut_raise_increase": [
                 "⚠️ 推演失败！加税减支、加息是对的，但增加货币供应等于一边抽水一边放水，流动性泛滥。",
                 "📉 政策打架。你提高了利率，却放开了货币供应，银行依然有充足资金放贷，通胀压不住！",
                 "❌ 失败。你低估了货币供应量的威力。增加供应直接对冲了加息的效果。"
             ],
-            // 4. 财政对，货币全错
+            // 4. 财政对，货币全错（降息、增币）
             "raise_cut_cut_increase": [
                 "🚨 灾难性推演！货币政策的降息和增币全面反向，市场流动性泛滥，经济彻底过热！",
                 "📉 火上浇油。财政政策的微调被货币政策的洪水淹没，通胀失控。",
                 "❌ 严重失误。你在货币端全踩错了，导致经济彻底失控。"
             ],
-            // 5. 财政错（减税、增支），货币对
+            // 5. 财政错（减税、增支），货币全对
             "cut_increase_raise_cut": [
                 "⚠️ 推演失败！你减税增支，还加息减币，政策完全对冲。市场无法降温。",
                 "📉 无效组合。财政端在放水刺激，货币端在抽水降温，互相抵消，通胀依旧。",
                 "❌ 失败。财政政策放水，货币政策抽水，你只是让市场原地打转。"
             ],
-            // 6. 财政错（加税、增支），货币对
+            // 6. 财政错（加税、增支），货币全对
             "raise_increase_raise_cut": [
                 "⚠️ 推演失败！加税的同时增加公共开支，政府的钱左手进右手出，总需求不变，通胀无解。",
                 "📉 无效操作。财政收支没有实质性紧缩，货币端虽然加息减币，但杯水车薪。",
                 "❌ 失败。你必须削减政府开支，才能真正降温。"
             ],
-            // 7. 财政错（减税、减支），货币对
+            // 7. 财政错（减税、减支），货币全对
             "cut_cut_raise_cut": [
                 "⚠️ 推演失败！减税刺激了企业，减支又抽走了政府需求，两者抵消。加息减币虽对，但独木难支。",
                 "📉 效果不佳。减税带来的投资冲动，被减支和加息勉强压制，通胀依然顽强。",
@@ -270,20 +270,25 @@
         }
 
         // ==========================================
-        // 核心：提交决策
+        // 核心提交逻辑（彻底修复版）
         // ==========================================
         async function submitToAI() {
             if (!gameActive) return;
 
+            // 1. 强制表单校验，防止未选全导致代码报错跳入兜底逻辑
             const tax = document.querySelector('input[name="tax"]:checked');
             const spending = document.querySelector('input[name="spending"]:checked');
             const rate = document.querySelector('input[name="rate"]:checked');
             const money = document.querySelector('input[name="money"]:checked');
 
             if (!tax || !spending || !rate || !money) {
-                alert("请完成所有四个政策的决策，再提交给AI推演！");
+                alert("请先完成所有四项政策的决策（税收、开支、利率、货币供应），再提交！");
                 return;
             }
+
+            // 2. 生成组合键，精确计算对错
+            const comboKey = `${tax.value}_${spending.value}_${rate.value}_${money.value}`;
+            const isAllCorrect = (comboKey === 'raise_cut_raise_cut');
 
             const btn = document.getElementById('submit-btn');
             const chatBox = document.getElementById('chat-box');
@@ -294,42 +299,32 @@
             chatBox.innerHTML = '<div class="text-yellow-300">🧑‍🎓 正在提交政策方案，请稍候...</div>';
             modeBadge.classList.add('hidden');
 
-            const userDecision = `
-1. 税收政策：${tax.value === 'raise' ? '提高税率' : '减免税项'}
-2. 公共开支：${spending.value === 'increase' ? '增加公共开支' : '减少公共开支'}
-3. 利率：${rate.value === 'raise' ? '提高利率' : '降低利率'}
-4. 货币供应：${money.value === 'increase' ? '增加货币供应' : '减少货币供应'}`;
-
-            // 生成组合键，用于本地预设查询
-            const comboKey = `${tax.value}_${spending.value}_${rate.value}_${money.value}`;
-            const isAllCorrect = (comboKey === "raise_cut_raise_cut");
+            // 设置4秒超时，防止API卡死课堂
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
 
             try {
-                // 尝试调用API
                 const response = await fetch(POLLINATIONS_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${POLLINATIONS_KEY}` },
+                    signal: controller.signal,
                     body: JSON.stringify({
                         model: MODEL_NAME,
                         messages: [
                             {
                                 role: 'system',
-                                content: `你是一位国家发改委主任。当前经济过热。
-请根据以下标准判断学生的方案：
-- 正确：加税、减支、加息、减币。
-- 错误：减税、增支、降息、增币。
-请用不超过80字汇报结果，直接指出对错和原因。不要Markdown。`
+                                content: `你是一位国家发改委主任。当前经济过热。请根据以下标准判断学生的方案：正确为加税、减支、加息、减币；错误为减税、增支、降息、增币。请用不超过80字汇报结果，直接指出对错和原因。不要Markdown。`
                             },
-                            { role: 'user', content: `学生方案：\n${userDecision}\n请推演。` }
+                            { role: 'user', content: `当前经济形势：经济过热。\n学生决策组合：\n1. 税收政策：${tax.value === 'raise' ? '提高税率' : '减免税项'}\n2. 公共开支：${spending.value === 'increase' ? '增加公共开支' : '减少公共开支'}\n3. 利率：${rate.value === 'raise' ? '提高利率' : '降低利率'}\n4. 货币供应：${money.value === 'increase' ? '增加货币供应' : '减少货币供应'}\n请推演。` }
                         ],
                         temperature: 0.7,
                         max_tokens: 200
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
+                clearTimeout(timeoutId);
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                 const data = await response.json();
                 const aiText = data.choices?.[0]?.message?.content;
@@ -340,23 +335,32 @@
                 modeBadge.classList.add('hidden');
 
             } catch (err) {
-                // ⚡ API失败，启用本地预设推演，绝对不冷场！
+                // API 失败或超时，触发本地预设（100%保证不翻车）
+                clearTimeout(timeoutId);
                 console.warn("API异常，启用本地预设推演:", err.message);
-                modeBadge.classList.remove('hidden');
-
-                // 从预设库中查找对应组合的回复，随机选取一条
-                const responses = PRESET_RESPONSES[comboKey] || [
-                    "⚠️ 推演异常，请重新调整您的政策组合。",
-                    "📉 系统无法识别该组合，请再试一次。",
-                    "❌ 发生未知错误，请重新提交。"
-                ];
-                const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-                
-                // 模拟一点点延迟，让体验更真实
-                setTimeout(() => {
-                    showResult(randomResponse, isAllCorrect, btn);
-                }, 800);
+                useLocalFallback(comboKey, isAllCorrect, btn);
             }
+        }
+
+        // ==========================================
+        // ⚡ 本地预设推演（根据组合随机抽取3条之一）
+        // ==========================================
+        function useLocalFallback(comboKey, isAllCorrect, btn) {
+            const modeBadge = document.getElementById('mode-badge');
+            modeBadge.classList.remove('hidden');
+
+            // 从预设库中查找对应组合的回复，随机选取一条
+            const responses = PRESET_RESPONSES[comboKey] || [
+                "⚠️ 推演异常，请重新调整您的政策组合。",
+                "📉 系统无法识别该组合，请再试一次。",
+                "❌ 发生未知错误，请重新提交。"
+            ];
+            const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+            
+            // 模拟一点点延迟，让体验更真实
+            setTimeout(() => {
+                showResult(randomResponse, isAllCorrect, btn);
+            }, 600);
         }
 
         // ==========================================
